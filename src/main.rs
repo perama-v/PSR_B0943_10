@@ -97,9 +97,9 @@ async fn main() -> Result<()> {
             Err(e) => return Err(e),
         };
         let bytecode_string = hex::encode(bytecode);
-        //DecompileBuilder::new(&bytecode_string)
-        //    .output(&format!("decompiled/{}", log.address))
-        //    .decompile();
+        DecompileBuilder::new(&bytecode_string)
+            .output(&format!("decompiled/{}", log.address))
+            .decompile();
     }
     Ok(())
 }
