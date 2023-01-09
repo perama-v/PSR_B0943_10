@@ -55,6 +55,7 @@ async fn main() -> Result<()> {
 /// Returns an address known to exist in the min-know sample data.
 fn address(index: u32) -> &'static str {
     let addresses = [
+        "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", // an EF wallet
         "0x846be97d3bf1e3865f3caf55d749864d39e54cb9",
         "0xcb776c47291b55bf02b159810712f6897874f1cc", // 7 transactions
         "0x691e27c4c24cf8a5700563e42dadf66b557f372c", // 44 transactions
