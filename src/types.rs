@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, collections::HashMap, default};
 
 use anyhow::{anyhow, Result};
 use heimdall::decompile::DecompileBuilder;
@@ -48,21 +48,6 @@ pub struct Config {
     pub rpc_url: &'static str,
 }
 
-impl Config {
-    /// Sets up TODD databases with the option for Sample, Default or Custom directories.
-    pub fn new(directory_nature: DirNature, rpc_url: &'static str) -> Result<Self> {
-        Ok(Config {
-            appearances_db: Todd::init(
-                DataKind::AddressAppearanceIndex(Network::default()),
-                directory_nature.clone(),
-            )?,
-            signatures_db: Todd::init(DataKind::Signatures, directory_nature.clone())?,
-            nametags_db: Todd::init(DataKind::NameTags, directory_nature.clone())?,
-            rpc_url,
-        })
-    }
-}
-
 /// Represents historical activity data for a single address.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AddressHistory {
@@ -72,6 +57,8 @@ pub struct AddressHistory {
     pub transactions: Vec<TxInfo>,
     /// Settings and configurations.
     pub config: Config,
+    /// A Cache of things looked up.
+    pub cache: Cache
 }
 
 /// Information about a particular transaction.
@@ -118,16 +105,64 @@ pub struct Contract {
     pub decompiled: bool,
 }
 
+#[derive(Debug, Default, Clone, PartialEq)]
+/// A store of things that have been obtained externally, that may arise more than once.
+///
+/// Each value has a bool
+pub struct Cache {
+    /// Maps (keccak) signatures to names text names.
+    ///
+    /// 4 byte signatures "abcd1234" -> "Withdraw()"
+    pub signatures: HashMap<String, (VisitNote, String)>,
+    /// Maps addresses to text names and tags.
+    ///
+    /// 20 byte addresses "abcd...1234" -> ("SomeContractName", "Special tag")
+    pub tags: HashMap<String, (VisitNote, Vec<String>)>,
+    /// Maps addresses to JSON encoded text ABIs.
+    ///
+    /// 20 byte addresses "abcd...1234" -> ("{...}")
+    pub abis: HashMap<String, (VisitNote, String)>
+}
+
+
+/// A resource may have been looked up before. This stores the result of that attempt.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub enum VisitNote {
+    #[default]
+    NotVisited,
+    PriorSuccess,
+    PriorFailure
+}
+
+
+impl Config {
+    /// Sets up TODD databases with the option for Sample, Default or Custom directories.
+    pub fn new(directory_nature: DirNature, rpc_url: &'static str) -> Result<Self> {
+        Ok(Config {
+            appearances_db: Todd::init(
+                DataKind::AddressAppearanceIndex(Network::default()),
+                directory_nature.clone(),
+            )?,
+            signatures_db: Todd::init(DataKind::Signatures, directory_nature.clone())?,
+            nametags_db: Todd::init(DataKind::NameTags, directory_nature.clone())?,
+            rpc_url,
+        })
+    }
+}
+
 impl AddressHistory {
     pub fn new(address: &'static str, config: Config) -> Self {
         AddressHistory {
             address,
             transactions: vec![],
             config,
+            cache: Cache::default()
         }
     }
     /// Find the appearances for this address.
-    pub fn find_transactions(&mut self) -> Result<&mut Self> {
+    ///
+    /// Uses an index of address appearances.
+    pub fn get_transaction_ids(&mut self) -> Result<&mut Self> {
         let values = self.config.appearances_db.find(&self.address)?;
         let mut appearances: Vec<AAIAppearanceTx> = vec![];
         for record_value in values {
@@ -147,8 +182,10 @@ impl AddressHistory {
     }
     /// Get the basic transaction data from a node.
     ///
+    /// Uses eth_getTransactionByBlockNumberAndIndex on local node.
+    ///
     /// Number of transactions to get data for can be capped.
-    pub async fn get_transactions(&mut self, cap_num: Option<u32>) -> Result<&mut Self> {
+    pub async fn get_transaction_data(&mut self, cap_num: Option<u32>) -> Result<&mut Self> {
         let transport = Http::new(&self.config.rpc_url)?;
         let web3 = Web3::new(transport);
         let mut txs_with_data = vec![];
@@ -180,6 +217,8 @@ impl AddressHistory {
         Ok(self)
     }
     /// Get the receipts of transactions from a node.
+    ///
+    /// Uses eth_getTransactionReceipt on local node.
     ///
     /// Number of transactions to get receipts for can be capped.
     pub async fn get_receipts(&mut self, cap_num: Option<u32>) -> Result<&mut Self> {
@@ -229,7 +268,7 @@ impl AddressHistory {
             let Some(receipt) = &tx.receipt else {continue};
             let mut events: Vec<LoggedEvent> = vec![];
             for log in receipt.logs.clone() {
-                let event = examine_log(&log, &mode, &web3, &self.config).await?;
+                let event = examine_log(&log, &mode, &web3, &self.config, &mut self.cache).await?;
                 let Some(e) = event else {continue};
                 events.push(e)
             }
@@ -251,6 +290,7 @@ async fn examine_log(
     mode: &Mode,
     web3: &Web3<Http>,
     config: &Config,
+    cache: &mut Cache
 ) -> Result<Option<LoggedEvent>> {
     let Some(topic_zero) = log.topics.get(0) else {return Ok(None)};
     let topic_zero_string = hex::encode(topic_zero);
@@ -288,19 +328,7 @@ for contract 0x{}. ({})",
         decompiled: false,
     };
 
-    let name = match mode {
-        Mode::AvoidApis => match sig_to_text(&topic_zero_string, config) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                error!(
-                    "Couldn't get text for signature: {} ({})",
-                    &topic_zero_string, e
-                );
-                None
-            }
-        },
-        Mode::UseApis => method_from_fourbyte_api(&topic_zero).await?,
-    };
+    let sig_text = cache.try_sig(&topic_zero_string, mode, config).await;
 
     let nametags = {
         match address_nametags(&address, config) {
@@ -315,22 +343,59 @@ for contract 0x{}. ({})",
         raw,
         contract,
         topic_zero: topic_zero.to_owned(),
-        name,
+        name: sig_text,
         nametags,
     };
     Ok(Some(event))
 }
 
+impl Cache {
+    /// Attempt to look up a signature if not in cache.
+    async fn try_sig(&mut self, sig: &str, mode: &Mode, config: &Config) -> Option<String> {
+        match self.signatures.get(sig) {
+            Some((VisitNote::PriorSuccess, value)) => {
+                debug!("Using cached signature: {} {}", sig, value);
+                return Some(value.to_owned())
+            },
+            Some((VisitNote::PriorFailure, _)) => {
+                debug!("(skipping) Prior failure for signature: {}", sig);
+                return None
+            },
+            _ => {},
+        }
+
+        let text = match mode {
+            Mode::AvoidApis => sig_to_text(&sig, config),
+            Mode::UseApis => method_from_fourbyte_api(&sig).await
+        };
+
+        match text {
+            Ok(s) => s,
+            Err(e) => {
+                error!(
+                    "Couldn't get text for signature: {} ({})",
+                    &sig, e
+                );
+                self.signatures.insert(sig.to_owned(), (VisitNote::PriorFailure, String::from("")));
+                return None
+            }
+        }
+    }
+}
+
 /// Uses TODD Signatures database to convert hex string to text string.
 ///
 /// Input: "abcd1234",  no leading "0x".
-fn sig_to_text(sig: &str, config: &Config) -> Result<String> {
+fn sig_to_text(sig: &str, config: &Config) -> Result<Option<String>> {
     let val = config.signatures_db.find(sig)?;
     let mut s = String::new();
-    for v in val {
+    for v in &val {
         s.extend(v.texts_as_strings()?);
     }
-    Ok(s)
+    if val.is_empty() {
+        return Ok(None)
+    } else {
+    Ok(Some(s)) }
 }
 
 /// Uses TODD nametags database to convert address to names and tags.

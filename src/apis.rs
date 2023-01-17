@@ -53,9 +53,8 @@ pub struct FourByteResponse {
 /// ## Hash collisions
 /// Each decoded candidate response is hashed and compared to the full 32 byte signature
 /// (present in the transaction log).
-pub async fn method_from_fourbyte_api(topic: &H256) -> Result<Option<String>> {
-    let sig = &topic.0[0..4];
-    let hex_sig = format!("0x{}", hex::encode(sig));
+pub async fn method_from_fourbyte_api(topic: &str) -> Result<Option<String>> {
+    let hex_sig = format!("0x{}", topic);
     let url = Url::from_str(FOURBYTE)?;
     let client = reqwest::Client::new();
     let response: FourBytePage = client

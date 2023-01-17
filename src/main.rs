@@ -35,8 +35,8 @@ async fn main() -> Result<()> {
     let mut history = AddressHistory::new(address(1), config);
 
     history
-        .find_transactions()?
-        .get_transactions(Some(1))
+        .get_transaction_ids()?
+        .get_transaction_data(Some(1))
         .await?
         .get_receipts(Some(1))
         .await?
