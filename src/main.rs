@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let config = Config::new(DirNature::Sample, PORTAL_NODE)?;
-    let mut history = AddressHistory::new(address(0), config);
+    let mut history = AddressHistory::new(address(1), config);
 
     history
         .find_transactions()?
@@ -43,7 +43,6 @@ async fn main() -> Result<()> {
         .decode_logs(Some(1), Mode::AvoidApis)
         .await?;
 
-    println!("{:?}", &history);
     Ok(())
 }
 

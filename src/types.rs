@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use heimdall::decompile::DecompileBuilder;
-use log::warn;
+use log::{debug, error, warn};
 use min_know::{
     config::{
         address_appearance_index::Network,
@@ -174,6 +174,9 @@ impl AddressHistory {
             txs_with_data.push(tx);
         }
         self.transactions = txs_with_data;
+        for t in &self.transactions {
+            debug!("{:?}", t.description);
+        }
         Ok(self)
     }
     /// Get the receipts of transactions from a node.
@@ -203,6 +206,9 @@ impl AddressHistory {
             txs_with_data.push(tx_new);
         }
         self.transactions = txs_with_data;
+        for t in &self.transactions {
+            debug!("{:?}", t.receipt);
+        }
         Ok(self)
     }
     /// Decodes the event signatures of the logs for each transaction
@@ -231,6 +237,10 @@ impl AddressHistory {
             tx_new.events = Some(events);
             txs_with_data.push(tx_new);
         }
+        self.transactions = txs_with_data;
+        for t in &self.transactions {
+            debug!("{:?}", t.events);
+        }
         Ok(self)
     }
 }
@@ -256,10 +266,14 @@ async fn examine_log(
     let cid = match cid_from_runtime_bytecode(bytecode.as_ref()) {
         Ok(c) => c,
         Err(e) => {
-            log::error!("The metadata CID was not able to be extracted from bytecode
-for contract 0x{}. ({})", hex::encode(log.address) ,e);
+            log::error!(
+                "The metadata CID was not able to be extracted from bytecode
+for contract 0x{}. ({})",
+                hex::encode(log.address),
+                e
+            );
             None
-        },
+        }
     };
 
     let abi = get_abi(&log.address, mode, &bytecode).await?;
@@ -274,15 +288,35 @@ for contract 0x{}. ({})", hex::encode(log.address) ,e);
         decompiled: false,
     };
 
+    let name = match mode {
+        Mode::AvoidApis => match sig_to_text(&topic_zero_string, config) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                error!(
+                    "Couldn't get text for signature: {} ({})",
+                    &topic_zero_string, e
+                );
+                None
+            }
+        },
+        Mode::UseApis => method_from_fourbyte_api(&topic_zero).await?,
+    };
+
+    let nametags = {
+        match address_nametags(&address, config) {
+            Ok(n) => Some(n),
+            Err(e) => {
+                error!("Couldn't get text for address: {} ({})", &address, e);
+                None
+            }
+        }
+    };
     let event: LoggedEvent = LoggedEvent {
         raw,
         contract,
         topic_zero: topic_zero.to_owned(),
-        name: match mode {
-            Mode::AvoidApis => Some(sig_to_text(&topic_zero_string, config)?),
-            Mode::UseApis => method_from_fourbyte_api(&topic_zero).await?,
-        },
-        nametags: Some(address_nametags(&address, config)?),
+        name,
+        nametags,
     };
     Ok(Some(event))
 }
