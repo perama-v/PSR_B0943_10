@@ -117,7 +117,7 @@ pub struct Cache {
     /// Maps addresses to text names and tags.
     ///
     /// 20 byte addresses "abcd...1234" -> ("SomeContractName", "Special tag")
-    pub tags: HashMap<String, (VisitNote, Vec<String>)>,
+    pub nametags: HashMap<String, (VisitNote, Vec<String>)>,
     /// Maps addresses to JSON encoded text ABIs.
     ///
     /// 20 byte addresses "abcd...1234" -> ("{...}")
@@ -330,15 +330,8 @@ for contract 0x{}. ({})",
 
     let sig_text = cache.try_sig(&topic_zero_string, mode, config).await;
 
-    let nametags = {
-        match address_nametags(&address, config) {
-            Ok(n) => Some(n),
-            Err(e) => {
-                error!("Couldn't get text for address: {} ({})", &address, e);
-                None
-            }
-        }
-    };
+    let nametags = cache.try_nametags(&address, config);
+
     let event: LoggedEvent = LoggedEvent {
         raw,
         contract,
@@ -377,10 +370,33 @@ impl Cache {
                     &sig, e
                 );
                 self.signatures.insert(sig.to_owned(), (VisitNote::PriorFailure, String::from("")));
-                return None
+                None
             }
         }
     }
+    /// Attempt to look up nametags if not in cache.
+    fn try_nametags(&self, address: &str, config: &Config) -> Option<Vec<String>> {
+        match self.nametags.get(address) {
+            Some((VisitNote::PriorSuccess, value)) => {
+                debug!("Using cached nametag: {} {:?}", address, value);
+                return Some(value.to_owned())
+            },
+            Some((VisitNote::PriorFailure, _)) => {
+                debug!("(skipping) Prior failure for nametag: {}", address);
+                return None
+            },
+            _ => {},
+        }
+
+        match address_nametags(&address, config) {
+            Ok(n) => Some(n),
+            Err(e) => {
+                error!("Couldn't get nametag for address: {} ({})", &address, e);
+                None
+            }
+        }
+    }
+
 }
 
 /// Uses TODD Signatures database to convert hex string to text string.
