@@ -2,9 +2,9 @@
 //!
 //! For example
 //! contract runtime bytecode contains source code metadata that can be decoded.
-use std::collections::HashMap;
+use std::{collections::HashMap, str::from_utf8};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, bail};
 use cbor::{Cbor, Decoder};
 use serde::{Deserialize, Serialize};
 
@@ -103,10 +103,18 @@ fn cid_extraction_2() {
 fn read_metadata(code: &[u8]) -> Result<&[u8]> {
     let suffix_len = 2;
     let code_len = code.len();
+    if code_len < suffix_len {bail!("No bytecode to read.")}
     let metadata_len_bytes = &code[(code_len - suffix_len)..(code_len)];
     let len_as_slice: [u8; 2] = metadata_len_bytes.try_into()?;
     let metadata_len = u16::from_be_bytes(len_as_slice) as usize;
-    let start = code_len - suffix_len - metadata_len;
+    let size_of_non_runtime_bytes = suffix_len + metadata_len;
+    let start = match code_len.checked_sub(size_of_non_runtime_bytes) {
+        Some(position) => position,
+        None => bail!("Bytecode has unexpected form, underflow in calculation.
+Total code len: {}. Non-runtime len: {}",
+            code_len, size_of_non_runtime_bytes
+            ),
+    };
     let end = code_len - suffix_len;
     let m = &code[start..end];
     Ok(m)

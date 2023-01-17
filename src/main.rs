@@ -6,14 +6,10 @@ mod types;
 use std::env;
 
 use anyhow::Result;
-use min_know::{
-    config::choices::{DataKind, DirNature},
-    database::types::Todd,
-    specs::address_appearance_index::AAISpec,
-};
+use min_know::config::choices::DirNature;
 use types::Mode;
 
-use crate::types::AddressHistory;
+use crate::types::{AddressHistory, Config};
 
 const PORTAL_NODE: &str = "http://localhost:8545";
 
@@ -35,9 +31,8 @@ async fn main() -> Result<()> {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
-    let db: Todd<AAISpec> = Todd::init(DataKind::default(), DirNature::Sample)?;
-
-    let mut history = AddressHistory::new(address(0), db, PORTAL_NODE);
+    let config = Config::new(DirNature::Sample, PORTAL_NODE)?;
+    let mut history = AddressHistory::new(address(0), config);
 
     history
         .find_transactions()?
@@ -45,7 +40,7 @@ async fn main() -> Result<()> {
         .await?
         .get_receipts(Some(1))
         .await?
-        .decode_logs(Some(1), Mode::UseApis)
+        .decode_logs(Some(1), Mode::AvoidApis)
         .await?;
 
     println!("{:?}", &history);
