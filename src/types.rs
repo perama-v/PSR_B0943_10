@@ -101,7 +101,7 @@ pub struct Contract {
     /// Path to the source code (original or decompiled).
     pub source_code: PathBuf,
     /// The contract ABI (original or decompiled).
-    pub abi: String,
+    pub abi: Option<String>,
     /// Flag for whether the contract data is from the source or is decompiled.
     pub decompiled: bool,
 }
@@ -295,10 +295,12 @@ for contract 0x{}. ({})",
             None
         }
     };
-
-    let abi = get_abi(&log.address, mode, &bytecode).await?;
-
     let address = h160_to_string(&log.address);
+
+    let abi = cache.try_abi(&log.address, &mode, config, &bytecode).await;
+    let sig_text = cache.try_sig(&topic_zero_string, mode, config).await;
+    let nametags = cache.try_nametags(&address, config);
+
     let contract = Contract {
         address: address.to_owned(),
         source_code_metadata_link: cid,
@@ -307,10 +309,6 @@ for contract 0x{}. ({})",
         abi,
         decompiled: false,
     };
-
-    let sig_text = cache.try_sig(&topic_zero_string, mode, config).await;
-
-    let nametags = cache.try_nametags(&address, config);
 
     let event: LoggedEvent = LoggedEvent {
         raw,
@@ -347,33 +345,4 @@ pub fn address_nametags(address: &str, config: &Config) -> Result<Vec<String>> {
         s.extend(v.tags_as_strings()?)
     }
     Ok(s)
-}
-
-/// Gets the ABI for a contract.
-///
-/// This may take two forms:
-/// - `Mode::UseApis` First tries Sourcify then Heimdall (which relies on third party API for
-/// four byte signatures)
-/// - `Mode::AvoidApis`
-pub async fn get_abi(address: &H160, mode: &Mode, bytecode: &[u8]) -> Result<String> {
-    Ok(match mode {
-        Mode::UseApis => {
-            let abi = abi_from_sourcify_api(address).await?;
-            // If no ABI is found at the API, decompile.
-            match abi {
-                Some(x) => x,
-                None => {
-                    let bytecode_string = hex::encode(&bytecode);
-                    DecompileBuilder::new(&bytecode_string)
-                        .output(&format!("decompiled/{}", address))
-                        .decompile();
-                    String::from("TODO: Pull from file")
-                }
-            }
-        }
-        Mode::AvoidApis => {
-            warn!("Integrate distributed ABI database over IPFS.");
-            String::from("TODO, get ABIs")
-        }
-    })
 }

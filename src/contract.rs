@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
 use cbor::{Cbor, Decoder};
+use log::error;
 use serde::{Deserialize, Serialize};
 
 /// Returns the IPFS CID extracted from the on-chain runtime bytecode of a
@@ -112,12 +113,15 @@ fn read_metadata(code: &[u8]) -> Result<&[u8]> {
     let size_of_non_runtime_bytes = suffix_len + metadata_len;
     let start = match code_len.checked_sub(size_of_non_runtime_bytes) {
         Some(position) => position,
-        None => bail!(
-            "Bytecode has unexpected form, underflow in calculation.
-Total code len: {}. Non-runtime len: {}",
-            code_len,
-            size_of_non_runtime_bytes
-        ),
+        None => {
+            let msg = format!(
+                "Bytecode has unexpected form, underflow in calculation.
+    Total code len: {}. Non-runtime len: {}",
+                code_len, size_of_non_runtime_bytes
+            );
+            error!("{}", msg);
+            bail!(msg)
+        }
     };
     let end = code_len - suffix_len;
     let m = &code[start..end];

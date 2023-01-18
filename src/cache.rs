@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use log::{debug, error};
+use anyhow::Result;
+use heimdall::decompile::DecompileBuilder;
+use log::{debug, error, warn};
+use web3::types::H160;
 
 use crate::{
-    apis::method_from_fourbyte_api,
+    apis::{abi_from_sourcify_api, method_from_fourbyte_api},
     types::{address_nametags, sig_to_text, Config, Mode, VisitNote},
 };
 
@@ -27,6 +30,64 @@ pub struct Cache {
 }
 
 impl Cache {
+    /// Attempt to look up abi if not in cache.
+    pub async fn try_abi(
+        &mut self,
+        address: &H160,
+        mode: &Mode,
+        config: &Config,
+        bytecode: &[u8],
+    ) -> Option<String> {
+        let address_string = address.to_string();
+        let address_string = address_string.trim_start_matches("0x");
+        match self.abis.get(address_string) {
+            Some((VisitNote::PriorSuccess, abi)) => {
+                debug!("Using cached ABI: {} {}", address_string, abi);
+                return Some(abi.to_owned());
+            }
+            Some((VisitNote::PriorFailure, _)) => {
+                debug!(
+                    "(skipping) Prior ABI fetch failure for address: {}",
+                    address
+                );
+                return None;
+            }
+            _ => {}
+        }
+
+        let abi_result = get_abi(address, mode, bytecode).await;
+
+        let abi = match abi_result {
+            Ok(a) => a,
+            Err(e) => {
+                error!("Couldn't get ABI for address: {} ({})", &address_string, e);
+                self.abis.insert(
+                    address_string.to_owned(),
+                    (VisitNote::PriorFailure, String::from("")),
+                );
+                return None;
+            }
+        };
+
+        match abi {
+            Some(a) => {
+                self.abis.insert(
+                    address_string.to_owned(),
+                    (VisitNote::PriorSuccess, a.to_owned()),
+                );
+                Some(a)
+            }
+            None => {
+                error!("No ABI found for address: {}", &address_string);
+                self.abis.insert(
+                    address_string.to_owned(),
+                    (VisitNote::PriorFailure, String::from("")),
+                );
+                return None;
+            }
+        }
+    }
+
     /// Attempt to look up a signature if not in cache.
     pub async fn try_sig(&mut self, sig: &str, mode: &Mode, config: &Config) -> Option<String> {
         match self.signatures.get(sig) {
@@ -35,7 +96,7 @@ impl Cache {
                 return Some(value.to_owned());
             }
             Some((VisitNote::PriorFailure, _)) => {
-                debug!("(skipping) Prior failure for signature: {}", sig);
+                debug!("(skipping) Prior text fetch failure for signature: {}", sig);
                 return None;
             }
             _ => {}
@@ -78,7 +139,10 @@ impl Cache {
                 return Some(value.to_owned());
             }
             Some((VisitNote::PriorFailure, _)) => {
-                debug!("(skipping) Prior failure for nametag: {}", address);
+                debug!(
+                    "(skipping) Prior nametag fetch failure for nametag: {}",
+                    address
+                );
                 return None;
             }
             _ => {}
@@ -100,4 +164,37 @@ impl Cache {
             }
         }
     }
+}
+
+/// Gets the ABI for a contract.
+///
+/// This may take two forms:
+/// - `Mode::UseApis` First tries Sourcify then Heimdall (which relies on third party API for
+/// four byte signatures)
+/// - `Mode::AvoidApis`
+pub async fn get_abi(address: &H160, mode: &Mode, bytecode: &[u8]) -> Result<Option<String>> {
+    Ok(match mode {
+        Mode::UseApis => {
+            let abi = abi_from_sourcify_api(address).await?;
+            // If no ABI is found at the API, decompile.
+            match abi {
+                Some(x) => Some(x),
+                None => {
+                    let bytecode_string = hex::encode(&bytecode);
+                    DecompileBuilder::new(&bytecode_string)
+                        .output(&format!("decompiled/{}", address))
+                        .decompile();
+                    warn!("Did not check if decompilation fails.");
+                    Some(String::from("TODO: Pull decompiled-ABI from file"))
+                }
+            }
+        }
+        Mode::AvoidApis => {
+            warn!(
+                "ABI not fetched for address {}. Pending integration with TODD-ABI (IPFS) database.",
+                address
+            );
+            Some(String::from("TODO, get TODD-ABIs"))
+        }
+    })
 }
