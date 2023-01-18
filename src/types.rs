@@ -357,25 +357,47 @@ impl Cache {
             _ => {},
         }
 
-        let text = match mode {
+        let text_result = match mode {
             Mode::AvoidApis => sig_to_text(&sig, config),
             Mode::UseApis => method_from_fourbyte_api(&sig).await
         };
 
-        match text {
-            Ok(s) => s,
+
+        let text = match text_result {
+            Ok(t) => t,
             Err(e) => {
                 error!(
                     "Couldn't get text for signature: {} ({})",
                     &sig, e
                 );
-                self.signatures.insert(sig.to_owned(), (VisitNote::PriorFailure, String::from("")));
-                None
+                self.signatures.insert(
+                    sig.to_owned(),
+                    (VisitNote::PriorFailure, String::from(""))
+                );
+                return None
             }
+        };
+
+        match text {
+            Some(t) => {
+                self.signatures.insert(
+                    sig.to_owned(),
+                    (VisitNote::PriorSuccess, t.to_owned())
+                );
+                Some(t)
+            },
+            None => {
+                error!("No text found for signature: {}", &sig);
+                self.signatures.insert(
+                    sig.to_owned(),
+                    (VisitNote::PriorFailure, String::from(""))
+                );
+                return None
+            },
         }
     }
     /// Attempt to look up nametags if not in cache.
-    fn try_nametags(&self, address: &str, config: &Config) -> Option<Vec<String>> {
+    fn try_nametags(&mut self, address: &str, config: &Config) -> Option<Vec<String>> {
         match self.nametags.get(address) {
             Some((VisitNote::PriorSuccess, value)) => {
                 debug!("Using cached nametag: {} {:?}", address, value);
@@ -389,14 +411,23 @@ impl Cache {
         }
 
         match address_nametags(&address, config) {
-            Ok(n) => Some(n),
+            Ok(n) => {
+                self.nametags.insert(
+                    address.to_owned(),
+                    (VisitNote::PriorSuccess, n.to_owned())
+                );
+                Some(n)
+            },
             Err(e) => {
                 error!("Couldn't get nametag for address: {} ({})", &address, e);
+                self.nametags.insert(
+                    address.to_owned(),
+                    (VisitNote::PriorFailure, vec![String::from("")])
+                );
                 None
             }
         }
     }
-
 }
 
 /// Uses TODD Signatures database to convert hex string to text string.
