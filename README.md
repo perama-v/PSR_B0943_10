@@ -1,35 +1,36 @@
 # PSR_B0943_10
-A (WIP) local wallet explorer.
-
-PSR B0943+10 is a pulsar (does things periodically) with a radius of only 2.6km (small).
-It possibly has the smallest radius of all the pulsars that we have found.
-
-Similarly a wallet is something that acts periodically and is quite small.
-
-Both seem hard to examine closely.
+A wallet explorer prototype.
 
 ## What
 
-It's about trying to get local wallet history without using:
+Get wallet history:
 
-- APIs
-- Lots of disk (say max 1GB)
+- Without using APIs.
+- Less than 1GB disk.
 
-So the strategy is:
+## How
 
-- Min-know distributed index (a flavour of the unchained-index). https://github.com/perama-v/min-know
+Tools:
+
+- Distributed databases (user shard and share)
+    - Names/tags https://github.com/perama-v/TODD/blob/main/example_specs/nametag.md
+    - 4 byte Signatures https://github.com/perama-v/TODD/blob/main/example_specs/signatures.md
+    - Address appearance index https://github.com/perama-v/address-appearance-index-specs
+    - TODO Distributed ABI database
+- Min-know distributed database manager library https://github.com/perama-v/min-know
 - Portal node (simulated here by using a full node for now). https://github.com/ethereum/trin
-- TODO: Distributed 4byte registry. https://github.com/perama-v/min-know/blob/main/GETTING_STARTED.md
-- TODO: Distributed Sourcify registry. https://github.com/perama-v/min-know/blob/main/GETTING_STARTED.md
-- Heimdall for local decompilation where source code is unavailable. https://github.com/Jon-Becker/heimdall-rs
 
+## Modes
+
+- `Mode::AvoidApis` (default). P2P clients only.
+- `Mode::UseApis` connects to [4byte.directory](4byte.directory) and [sourcify.dev](sourcify.dev) APIs.
 ## Why
 
-It is probably possible to get a human readable history of your
-own on chain activity. In a way that doesn't rely on single counterparties,
-or a large portion of your hard drive.
+- Human readable history of your own on chain activity.
+- Doesn't rely on single counterparties.
+- Doesn't use a large portion of your hard drive.
 
-https://perama-v.github.io/ethereum/protocol/poking
+Some loose ramblings on this journey: https://perama-v.github.io/ethereum/protocol/poking
 
 Try to get to the bottom without using an API or >1GB.
 
@@ -39,7 +40,7 @@ Try to get to the bottom without using an API or >1GB.
 
 Does:
 
-- Operate in Mode::AvoidApis mode
+- Operate in `Mode::AvoidApis` mode
 - Use sample data from TODD-compliant databases
     - Appearances (find transactions for a wallet address)
     - Nametags (label a contract involved in a transaction)
@@ -99,4 +100,9 @@ Next
     4. Survey transactions to determine relevant data
     5. Fetch data (TODD Chapters) using Min-know
 
+## Name
 
+PSR B0943+10 is:
+- A terrible name
+- The name of the smallest known pulsar
+- Tiny (2.6km radius) a pulsar (does things periodically) with a radius of only 2.6km (small).
