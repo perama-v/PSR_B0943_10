@@ -37,39 +37,66 @@ Try to get to the bottom without using an API or >1GB.
 
 ## Status
 
-Currently:
+Does:
 
-- Can deduce which transactions are important for an address
-    - By fetching 1/256th of an index that is relevant to the address.
-- Can talk to a node and get the transactions and receipts.
-- For each transaction can produce the events emitted. (an okay start)
-- Gets links to any source code attached to the contracts that emit those events
-(IPFS/swarm)
+- Operate in Mode::AvoidApis mode
+- Use sample data from TODD-compliant databases
+    - Appearances (find transactions for a wallet address)
+    - Nametags (label a contract involved in a transaction)
+    - Signatures (translate an event emitted during a transaction)
+- Use a local node to get transaction receipts
+- Substitues nametags/signatures and prints transactions to the terminal.
+
 ```sh
-Address xyz has n transactions...
-(picks first transaction)
-Tx 0x1a8d94dda1694bad33384215bb3dc0a56652b7069c71d2b1afed35b24c9b54df has 5 logs:
+There are 2 txs for address: 0x846be97d3bf1e3865f3caf55d749864d39e54cb9
 
-Contract: 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
-        Topics logged: [0xe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c, 0x0000000000000000000000007a250d5630b4cf539739df2c5dacb4c659f2488d]
-        Metadata CID: Swarm("deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a")
-Contract: 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
-        Topics logged: [0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, 0x0000000000000000000000007a250d5630b4cf539739df2c5dacb4c659f2488d, 0x0000000000000000000000001636a5dfcf7a21945c06d1bea40b52ce975ea614]
-        Metadata CID: Swarm("deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a")
-Contract: 0x106d3c66d22d2dd0446df23d7f5960752994d600
-        Topics logged: [0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, 0x0000000000000000000000001636a5dfcf7a21945c06d1bea40b52ce975ea614, 0x000000000000000000000000846be97d3bf1e3865f3caf55d749864d39e54cb9]
-        Metadata CID: Ipfs("QmZwxURkw5nD5ZCnrhqLdDFG1G52JYKXoXhvvQV2e6cmMH")
-Contract: 0x1636a5dfcf7a21945c06d1bea40b52ce975ea614
-        Topics logged: [0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1]
-        Metadata CID: Swarm("7dca18479e58487606bf70c79e44d8dee62353c9ee6d01f9a9d70885b8765f22")
-Contract: 0x1636a5dfcf7a21945c06d1bea40b52ce975ea614
-        Topics logged: [0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822, 0x0000000000000000000000007a250d5630b4cf539739df2c5dacb4c659f2488d, 0x000000000000000000000000846be97d3bf1e3865f3caf55d749864d39e54cb9]
-        Metadata CID: Swarm("7dca18479e58487606bf70c79e44d8dee62353c9ee6d01f9a9d70885b8765f22")
+Transaction 0:
+        Sender: Self
+        Recipient: 0x7a250d5630b4cf539739df2c5dacb4c659f2488d
+        Contract: None
+        Tx Hash: 1a8d94dda1694bad33384215bb3dc0a56652b7069c71d2b1afed35b24c9b54df
+        Events emitted: 5
+
+                Deposit(address,uint256) event (e1fffcc4)
+                |WETH|erc20|contract| c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 contract
+                        Topic values: 2, topic 1 0xe1ff…109c, topic 2 0x0000…488d
+                        Data: 32 bytes.. Event 0/5
+
+                Transfer(address,address,uint256) event (ddf252ad)
+                |WETH|erc20|contract| c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2 contract
+                        Topic values: 3, topic 1 0xddf2…b3ef, topic 2 0x0000…488d, topic 3 0x0000…a614
+                        Data: 32 bytes.. Event 1/5
+
+                Transfer(address,address,uint256) event (ddf252ad)
+                |LabraCoin|erc20| 106d3c66d22d2dd0446df23d7f5960752994d600 contract
+                        Topic values: 3, topic 1 0xddf2…b3ef, topic 2 0x0000…a614, topic 3 0x0000…4cb9
+                        Data: 32 bytes.. Event 2/5
+
+                Unknown event (1c411e9a)
+                |unlabelled| 1636a5dfcf7a21945c06d1bea40b52ce975ea614 contract
+                        Topic values: 1, topic 1 0x1c41…bad1
+                        Data: 64 bytes.. Event 3/5
+
+                Unknown event (d78ad95f)
+                |unlabelled| 1636a5dfcf7a21945c06d1bea40b52ce975ea614 contract
+                        Topic values: 3, topic 1 0xd78a…d822, topic 2 0x0000…488d, topic 3 0x0000…4cb9
+                        Data: 128 bytes.. Event 4/5
+
+Transaction 1:
+        Sender: Self
+        Recipient: 0x8028cfc2e08a6b569530d4809cfa75b1f3ffd6ad
+        Contract: None
+        Tx Hash: 48bef06ec38f53a9f9f193717dad9b301842077d47d55e0e94fa27a05ec7193c
+        Events emitted: 0
 ```
 Next
-- Get event signatures (4byte)
-- Get the source code (Sourcify), or heimdall if unavailable
-- Present some readable lists of things that have happened in each transaction
-- See if it can be intelligible to a human interested in remembering what they have previously
-been up to on-chain.
+- Use ABIs to get paramters.
+    - Either using metadata IPFS/Swarm hash for ABI or a new TODD-compliant ABI database.
+- Use data beyond TODD sample data (appearances, nametags and signatures databases)
+    1. Use Min-know to call broadcast contract
+    2. Get IPNS name
+    3. Fetch manifest
+    4. Survey transactions to determine relevant data
+    5. Fetch data (TODD Chapters) using Min-know
+
 
