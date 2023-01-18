@@ -7,7 +7,7 @@ use web3::types::H160;
 
 use crate::{
     apis::{abi_from_sourcify_api, method_from_fourbyte_api},
-    types::{address_nametags, sig_to_text, Config, Mode, VisitNote},
+    history::{address_nametags, sig_to_text, Config, Mode, VisitNote},
 };
 
 #[derive(Debug, Default, Clone, PartialEq)]

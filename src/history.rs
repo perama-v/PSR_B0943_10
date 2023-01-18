@@ -1,8 +1,7 @@
 use std::{path::PathBuf, fmt::Display};
 
 use anyhow::{anyhow, Result};
-use heimdall::decompile::DecompileBuilder;
-use log::{debug, warn};
+use log::{debug};
 use min_know::{
     config::{
         address_appearance_index::Network,
@@ -15,18 +14,17 @@ use min_know::{
         signatures::SignaturesSpec,
     },
 };
-use serde::{Deserialize, Serialize};
+
 use web3::{
     transports::Http,
-    types::{BlockNumber, Log, Transaction, TransactionReceipt, H160, H256},
+    types::{BlockNumber, Log, H160},
     Web3,
 };
 
 use crate::{
-    apis::abi_from_sourcify_api,
     cache::Cache,
-    contract::{cid_from_runtime_bytecode, MetadataSource},
-    parsing::h160_to_string,
+    contract::{cid_from_runtime_bytecode},
+    parsing::h160_to_string, data::{LoggedEvent, TxInfo, Contract},
 };
 
 /// Selected mode of operation. APIs are used as temporary stop-gaps.
@@ -60,50 +58,6 @@ pub struct AddressHistory {
     pub config: Config,
     /// A Cache of things looked up.
     pub cache: Cache,
-}
-
-/// Information about a particular transaction.
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct TxInfo {
-    /// A block number and index.
-    pub location: AAIAppearanceTx,
-    /// Data from eth_getTransactionByBlockNumberAndIndex.
-    pub description: Option<Transaction>,
-    /// Receipt from eth_getTransactionReceipt.
-    pub receipt: Option<TransactionReceipt>,
-    /// Events extracted from the Transaction.
-    pub events: Option<Vec<LoggedEvent>>,
-}
-
-/// Information about a particular logged event.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct LoggedEvent {
-    /// Unmodified Transaction.log.
-    pub raw: Log,
-    /// The signature of the first topic (raw event name).
-    pub topic_zero: String,
-    /// Address of the contract that emitted the event.
-    pub contract: Contract,
-    /// Decoded 4 byte log signature.
-    pub name: Option<String>,
-    /// Associated names or tags for the emitting contract.
-    pub nametags: Option<Vec<String>>,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Contract {
-    /// The address of the contract
-    pub address: String,
-    /// Link extracted from the CBOR encoded metadata on deployed bytecode (usually IFPS or swarm)
-    pub source_code_metadata_link: Option<MetadataSource>,
-    /// The bytecode of the contract.
-    pub bytecode: Vec<u8>,
-    /// Path to the source code (original or decompiled).
-    pub source_code: PathBuf,
-    /// The contract ABI (original or decompiled).
-    pub abi: Option<String>,
-    /// Flag for whether the contract data is from the source or is decompiled.
-    pub decompiled: bool,
 }
 
 /// A resource may have been looked up before. This stores the result of that attempt.
@@ -276,7 +230,15 @@ impl Display for AddressHistory {
             write!(f, "\n\tSender: {}", nice_address(desc.from, a))?;
             write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
             write!(f, "\n\tContract: {}", nice_address(receipt.contract_address, a))?;
-            write!(f, "\n\tEvents emitted: {}", events.len())?;
+            let event_count = events.len();
+            write!(f, "\n\tEvents emitted: {}", event_count)?;
+            for (i, e) in events.iter().enumerate() {
+                if i > 10 {
+                    write!(f, "\n\t\tSkipping remaining {} events...", event_count - i - 1)?;
+                    break
+                }
+                write!(f, "\n\n\t\t{}/{}: {}", i, event_count, e)?;
+            }
         }
         write!(f, "")
     }

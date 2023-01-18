@@ -1,16 +1,17 @@
 mod apis;
 mod cache;
 mod contract;
+mod data;
 mod parsing;
-mod types;
+mod history;
 
 use std::env;
 
 use anyhow::Result;
 use min_know::config::choices::DirNature;
-use types::Mode;
+use history::Mode;
 
-use crate::types::{AddressHistory, Config};
+use crate::history::{AddressHistory, Config};
 
 const PORTAL_NODE: &str = "http://localhost:8545";
 
@@ -33,7 +34,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let config = Config::new(DirNature::Sample, PORTAL_NODE)?;
-    let mut history = AddressHistory::new(SAMPLE_ADDRESS[1], config);
+    let mut history = AddressHistory::new(SAMPLE_ADDRESS[0], config);
 
     history
         .get_transaction_ids()?
