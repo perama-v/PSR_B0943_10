@@ -2,14 +2,14 @@ mod apis;
 mod cache;
 mod contract;
 mod data;
-mod parsing;
 mod history;
+mod parsing;
 
 use std::env;
 
 use anyhow::Result;
-use min_know::config::choices::DirNature;
 use history::Mode;
+use min_know::config::choices::DirNature;
 
 use crate::history::{AddressHistory, Config};
 
@@ -48,7 +48,6 @@ async fn main() -> Result<()> {
     println!("{}", history);
     Ok(())
 }
-
 
 const SAMPLE_ADDRESS: [&str; 10] = [
     "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", // an EF wallet

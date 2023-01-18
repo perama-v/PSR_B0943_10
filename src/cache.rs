@@ -35,7 +35,6 @@ impl Cache {
         &mut self,
         address: &H160,
         mode: &Mode,
-        config: &Config,
         bytecode: &[u8],
     ) -> Option<String> {
         let address_string = hex::encode(address);
@@ -83,7 +82,7 @@ impl Cache {
                     address_string.to_owned(),
                     (VisitNote::PriorFailure, String::from("")),
                 );
-                return None;
+                None
             }
         }
     }
@@ -103,8 +102,8 @@ impl Cache {
         }
 
         let text_result = match mode {
-            Mode::AvoidApis => sig_to_text(&sig, config),
-            Mode::UseApis => method_from_fourbyte_api(&sig).await,
+            Mode::AvoidApis => sig_to_text(sig, config),
+            Mode::UseApis => method_from_fourbyte_api(sig).await,
         };
 
         let text = match text_result {
@@ -127,7 +126,7 @@ impl Cache {
                 error!("No text found for signature: {}", &sig);
                 self.signatures
                     .insert(sig.to_owned(), (VisitNote::PriorFailure, String::from("")));
-                return None;
+                None
             }
         }
     }
@@ -181,7 +180,7 @@ pub async fn get_abi(address: &H160, mode: &Mode, bytecode: &[u8]) -> Result<Opt
             match abi {
                 Some(x) => Some(x),
                 None => {
-                    let bytecode_string = hex::encode(&bytecode);
+                    let bytecode_string = hex::encode(bytecode);
                     DecompileBuilder::new(&bytecode_string)
                         .output(&format!("decompiled/{}", address))
                         .decompile();

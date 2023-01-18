@@ -1,7 +1,7 @@
-use std::{path::PathBuf, fmt::Display};
+use std::{fmt::Display, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use log::{debug};
+use log::debug;
 use min_know::{
     config::{
         address_appearance_index::Network,
@@ -23,13 +23,15 @@ use web3::{
 
 use crate::{
     cache::Cache,
-    contract::{cid_from_runtime_bytecode},
-    parsing::h160_to_string, data::{LoggedEvent, TxInfo, Contract},
+    contract::cid_from_runtime_bytecode,
+    data::{Contract, LoggedEvent, TxInfo},
+    parsing::h160_to_string,
 };
 
 /// Selected mode of operation. APIs are used as temporary stop-gaps.
 ///
 /// Available APIs: Sourcify and 4byte.directory.
+#[allow(dead_code)]
 pub enum Mode {
     AvoidApis,
     UseApis,
@@ -78,7 +80,7 @@ impl Config {
                 directory_nature.clone(),
             )?,
             signatures_db: Todd::init(DataKind::Signatures, directory_nature.clone())?,
-            nametags_db: Todd::init(DataKind::NameTags, directory_nature.clone())?,
+            nametags_db: Todd::init(DataKind::NameTags, directory_nature)?,
             rpc_url,
         })
     }
@@ -97,7 +99,7 @@ impl AddressHistory {
     ///
     /// Uses an index of address appearances.
     pub fn get_transaction_ids(&mut self) -> Result<&mut Self> {
-        let values = self.config.appearances_db.find(&self.address)?;
+        let values = self.config.appearances_db.find(self.address)?;
         let mut appearances: Vec<AAIAppearanceTx> = vec![];
         for record_value in values {
             // Join together the SSZ vectors in to one Vector.
@@ -120,7 +122,7 @@ impl AddressHistory {
     ///
     /// Number of transactions to get data for can be capped.
     pub async fn get_transaction_data(&mut self, cap_num: Option<u32>) -> Result<&mut Self> {
-        let transport = Http::new(&self.config.rpc_url)?;
+        let transport = Http::new(self.config.rpc_url)?;
         let web3 = Web3::new(transport);
         let mut txs_with_data = vec![];
         for (i, tx) in self.transactions.iter().enumerate() {
@@ -156,7 +158,7 @@ impl AddressHistory {
     ///
     /// Number of transactions to get receipts for can be capped.
     pub async fn get_receipts(&mut self, cap_num: Option<u32>) -> Result<&mut Self> {
-        let transport = Http::new(&self.config.rpc_url)?;
+        let transport = Http::new(self.config.rpc_url)?;
         let web3 = Web3::new(transport);
         let mut txs_with_data: Vec<TxInfo> = vec![];
         for (i, tx) in self.transactions.iter().enumerate() {
@@ -190,7 +192,7 @@ impl AddressHistory {
     /// is obtained with ethGetCode and useful information is stored
     /// alongside the event.
     pub async fn decode_logs(&mut self, cap_num: Option<u32>, mode: Mode) -> Result<&mut Self> {
-        let transport = Http::new(&self.config.rpc_url)?;
+        let transport = Http::new(self.config.rpc_url)?;
         let web3 = Web3::new(transport);
         let mut txs_with_data: Vec<TxInfo> = vec![];
         for (i, tx) in self.transactions.iter().enumerate() {
@@ -221,7 +223,12 @@ impl AddressHistory {
 impl Display for AddressHistory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let a = self.address;
-        write!(f, "There are {} txs for address: {}", self.transactions.len(), a)?;
+        write!(
+            f,
+            "There are {} txs for address: {}",
+            self.transactions.len(),
+            a
+        )?;
         for (i, tx) in self.transactions.iter().enumerate() {
             write!(f, "\n\nTransaction {}:", i)?;
             let Some(desc) = &tx.description else {continue};
@@ -229,14 +236,22 @@ impl Display for AddressHistory {
             let Some(events) = &tx.events else {continue};
             write!(f, "\n\tSender: {}", nice_address(desc.from, a))?;
             write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
-            write!(f, "\n\tContract: {}", nice_address(receipt.contract_address, a))?;
+            write!(
+                f,
+                "\n\tContract: {}",
+                nice_address(receipt.contract_address, a)
+            )?;
             write!(f, "\n\tTx Hash: {}", hex::encode(desc.hash))?;
             let event_count = events.len();
             write!(f, "\n\tEvents emitted: {}", event_count)?;
             for (i, e) in events.iter().enumerate() {
                 if i > 10 {
-                    write!(f, "\n\t\tSkipping remaining {} events...", event_count - i - 1)?;
-                    break
+                    write!(
+                        f,
+                        "\n\t\tSkipping remaining {} events...",
+                        event_count - i - 1
+                    )?;
+                    break;
                 }
                 write!(f, "\n\n\t\t{}. Event {}/{}", e, i, event_count)?;
             }
@@ -248,15 +263,15 @@ impl Display for AddressHistory {
 /// Makes an address option nice to read and detects if it is the owner.
 fn nice_address(address: Option<H160>, owner_address: &str) -> String {
     let owner_address = owner_address.trim_start_matches("0x");
-    match address{
+    match address {
         Some(a) => {
             let a = hex::encode(a);
-            if &a == owner_address {
-                return String::from("Self")
+            if a == owner_address {
+                String::from("Self")
             } else {
-                return format!("0x{}",a)
+                format!("0x{}", a)
             }
-        },
+        }
         None => String::from("None"),
     }
 }
@@ -273,7 +288,7 @@ async fn examine_log(
         Some(t) => {
             let s = hex::encode(t);
             s[..8].to_owned()
-        },
+        }
         None => return Ok(None),
     };
     let raw = log.clone();
@@ -299,7 +314,7 @@ for contract 0x{}. ({})",
     };
     let address = h160_to_string(&log.address);
 
-    let abi = cache.try_abi(&log.address, &mode, config, &bytecode).await;
+    let abi = cache.try_abi(&log.address, mode, &bytecode).await;
     let sig_text = cache.try_sig(&topic_zero, mode, config).await;
     let nametags = cache.try_nametags(&log.address, config);
 
@@ -332,7 +347,7 @@ pub fn sig_to_text(sig: &str, config: &Config) -> Result<Option<String>> {
         s.extend(v.texts_as_strings()?);
     }
     if val.is_empty() {
-        return Ok(None);
+        Ok(None)
     } else {
         Ok(Some(s))
     }

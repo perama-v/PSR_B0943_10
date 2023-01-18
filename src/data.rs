@@ -1,11 +1,10 @@
-use std::{path::PathBuf, fmt::Display};
+use std::{fmt::Display, path::PathBuf};
 
 use min_know::specs::address_appearance_index::AAIAppearanceTx;
 use serde::{Deserialize, Serialize};
 use web3::types::{Transaction, TransactionReceipt};
 
 use crate::contract::MetadataSource;
-
 
 /// Information about a particular logged event.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -22,7 +21,6 @@ pub struct LoggedEvent {
     pub nametags: Option<Vec<String>>,
 }
 
-
 /// Information about a particular transaction.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct TxInfo {
@@ -35,7 +33,6 @@ pub struct TxInfo {
     /// Events extracted from the Transaction.
     pub events: Option<Vec<LoggedEvent>>,
 }
-
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Contract {
@@ -58,13 +55,15 @@ impl LoggedEvent {
         let mut nametags = String::new();
         match &self.nametags {
             Some(tags) => {
-                if tags.is_empty() { nametags.push_str("|unlabelled")}
-                nametags.push_str("|");
-                for tag in tags {
-                    nametags.push_str(&tag);
-                    nametags.push_str("|");
+                if tags.is_empty() {
+                    nametags.push_str("|unlabelled")
                 }
-            },
+                nametags.push('|');
+                for tag in tags {
+                    nametags.push_str(tag);
+                    nametags.push('|');
+                }
+            }
             None => nametags.push_str("|unlabelled"),
         }
         nametags.push(' ');
@@ -74,7 +73,7 @@ impl LoggedEvent {
     fn event_string(&self) -> String {
         let mut event = String::new();
         match &self.name {
-            Some(n) => event.push_str(&n),
+            Some(n) => event.push_str(n),
             None => event.push_str("Unknown"),
         }
         let sig = format!(" event ({})", self.topic_zero);
@@ -84,12 +83,11 @@ impl LoggedEvent {
     fn topics_string(&self) -> String {
         let mut t = format!("{}", self.raw.topics.len());
         for (i, topic) in self.raw.topics.iter().enumerate() {
-            t.push_str(&format!(", topic {} {}", i + 1, topic.to_string()));
+            t.push_str(&format!(", topic {} {}", i + 1, topic));
         }
         t
     }
 }
-
 
 impl Display for LoggedEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -103,11 +101,14 @@ impl Display for LoggedEvent {
 
 impl Display for Contract {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         let abi = match &self.abi {
             Some(a) => a,
             None => "Absent",
         };
-        write!(f, "contract address {}, (abi sample: '{}', decomplied status: {})", self.address, abi, self.decompiled)
+        write!(
+            f,
+            "contract address {}, (abi sample: '{}', decomplied status: {})",
+            self.address, abi, self.decompiled
+        )
     }
 }
