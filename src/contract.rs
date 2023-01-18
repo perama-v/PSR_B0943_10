@@ -2,7 +2,7 @@
 //!
 //! For example
 //! contract runtime bytecode contains source code metadata that can be decoded.
-use std::{collections::HashMap, str::from_utf8};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
 use cbor::{Cbor, Decoder};

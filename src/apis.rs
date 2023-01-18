@@ -17,7 +17,7 @@ use anyhow::{bail, Result};
 use reqwest::{header::CONTENT_TYPE, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use web3::types::{H160, H256};
+use web3::types::H160;
 
 use crate::parsing::{as_checksummed, summary_of_abi_from_json};
 

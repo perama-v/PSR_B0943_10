@@ -1,4 +1,5 @@
 mod apis;
+mod cache;
 mod contract;
 mod parsing;
 mod types;

@@ -1,8 +1,8 @@
-use std::{path::PathBuf, collections::HashMap, default};
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use heimdall::decompile::DecompileBuilder;
-use log::{debug, error, warn};
+use log::{debug, warn};
 use min_know::{
     config::{
         address_appearance_index::Network,
@@ -23,7 +23,8 @@ use web3::{
 };
 
 use crate::{
-    apis::{abi_from_sourcify_api, method_from_fourbyte_api},
+    apis::abi_from_sourcify_api,
+    cache::Cache,
     contract::{cid_from_runtime_bytecode, MetadataSource},
     parsing::h160_to_string,
 };
@@ -58,7 +59,7 @@ pub struct AddressHistory {
     /// Settings and configurations.
     pub config: Config,
     /// A Cache of things looked up.
-    pub cache: Cache
+    pub cache: Cache,
 }
 
 /// Information about a particular transaction.
@@ -105,35 +106,14 @@ pub struct Contract {
     pub decompiled: bool,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
-/// A store of things that have been obtained externally, that may arise more than once.
-///
-/// Each value has a bool
-pub struct Cache {
-    /// Maps (keccak) signatures to names text names.
-    ///
-    /// 4 byte signatures "abcd1234" -> "Withdraw()"
-    pub signatures: HashMap<String, (VisitNote, String)>,
-    /// Maps addresses to text names and tags.
-    ///
-    /// 20 byte addresses "abcd...1234" -> ("SomeContractName", "Special tag")
-    pub nametags: HashMap<String, (VisitNote, Vec<String>)>,
-    /// Maps addresses to JSON encoded text ABIs.
-    ///
-    /// 20 byte addresses "abcd...1234" -> ("{...}")
-    pub abis: HashMap<String, (VisitNote, String)>
-}
-
-
 /// A resource may have been looked up before. This stores the result of that attempt.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum VisitNote {
     #[default]
     NotVisited,
     PriorSuccess,
-    PriorFailure
+    PriorFailure,
 }
-
 
 impl Config {
     /// Sets up TODD databases with the option for Sample, Default or Custom directories.
@@ -156,7 +136,7 @@ impl AddressHistory {
             address,
             transactions: vec![],
             config,
-            cache: Cache::default()
+            cache: Cache::default(),
         }
     }
     /// Find the appearances for this address.
@@ -290,7 +270,7 @@ async fn examine_log(
     mode: &Mode,
     web3: &Web3<Http>,
     config: &Config,
-    cache: &mut Cache
+    cache: &mut Cache,
 ) -> Result<Option<LoggedEvent>> {
     let Some(topic_zero) = log.topics.get(0) else {return Ok(None)};
     let topic_zero_string = hex::encode(topic_zero);
@@ -342,111 +322,24 @@ for contract 0x{}. ({})",
     Ok(Some(event))
 }
 
-impl Cache {
-    /// Attempt to look up a signature if not in cache.
-    async fn try_sig(&mut self, sig: &str, mode: &Mode, config: &Config) -> Option<String> {
-        match self.signatures.get(sig) {
-            Some((VisitNote::PriorSuccess, value)) => {
-                debug!("Using cached signature: {} {}", sig, value);
-                return Some(value.to_owned())
-            },
-            Some((VisitNote::PriorFailure, _)) => {
-                debug!("(skipping) Prior failure for signature: {}", sig);
-                return None
-            },
-            _ => {},
-        }
-
-        let text_result = match mode {
-            Mode::AvoidApis => sig_to_text(&sig, config),
-            Mode::UseApis => method_from_fourbyte_api(&sig).await
-        };
-
-
-        let text = match text_result {
-            Ok(t) => t,
-            Err(e) => {
-                error!(
-                    "Couldn't get text for signature: {} ({})",
-                    &sig, e
-                );
-                self.signatures.insert(
-                    sig.to_owned(),
-                    (VisitNote::PriorFailure, String::from(""))
-                );
-                return None
-            }
-        };
-
-        match text {
-            Some(t) => {
-                self.signatures.insert(
-                    sig.to_owned(),
-                    (VisitNote::PriorSuccess, t.to_owned())
-                );
-                Some(t)
-            },
-            None => {
-                error!("No text found for signature: {}", &sig);
-                self.signatures.insert(
-                    sig.to_owned(),
-                    (VisitNote::PriorFailure, String::from(""))
-                );
-                return None
-            },
-        }
-    }
-    /// Attempt to look up nametags if not in cache.
-    fn try_nametags(&mut self, address: &str, config: &Config) -> Option<Vec<String>> {
-        match self.nametags.get(address) {
-            Some((VisitNote::PriorSuccess, value)) => {
-                debug!("Using cached nametag: {} {:?}", address, value);
-                return Some(value.to_owned())
-            },
-            Some((VisitNote::PriorFailure, _)) => {
-                debug!("(skipping) Prior failure for nametag: {}", address);
-                return None
-            },
-            _ => {},
-        }
-
-        match address_nametags(&address, config) {
-            Ok(n) => {
-                self.nametags.insert(
-                    address.to_owned(),
-                    (VisitNote::PriorSuccess, n.to_owned())
-                );
-                Some(n)
-            },
-            Err(e) => {
-                error!("Couldn't get nametag for address: {} ({})", &address, e);
-                self.nametags.insert(
-                    address.to_owned(),
-                    (VisitNote::PriorFailure, vec![String::from("")])
-                );
-                None
-            }
-        }
-    }
-}
-
 /// Uses TODD Signatures database to convert hex string to text string.
 ///
 /// Input: "abcd1234",  no leading "0x".
-fn sig_to_text(sig: &str, config: &Config) -> Result<Option<String>> {
+pub fn sig_to_text(sig: &str, config: &Config) -> Result<Option<String>> {
     let val = config.signatures_db.find(sig)?;
     let mut s = String::new();
     for v in &val {
         s.extend(v.texts_as_strings()?);
     }
     if val.is_empty() {
-        return Ok(None)
+        return Ok(None);
     } else {
-    Ok(Some(s)) }
+        Ok(Some(s))
+    }
 }
 
 /// Uses TODD nametags database to convert address to names and tags.
-fn address_nametags(address: &str, config: &Config) -> Result<Vec<String>> {
+pub fn address_nametags(address: &str, config: &Config) -> Result<Vec<String>> {
     let val = config.nametags_db.find(address)?;
     let mut s = vec![];
     for v in val {
