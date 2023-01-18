@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let config = Config::new(DirNature::Sample, PORTAL_NODE)?;
-    let mut history = AddressHistory::new(address(1), config);
+    let mut history = AddressHistory::new(SAMPLE_ADDRESS[1], config);
 
     history
         .get_transaction_ids()?
@@ -44,22 +44,20 @@ async fn main() -> Result<()> {
         .decode_logs(Some(1), Mode::AvoidApis)
         .await?;
 
+    println!("{}", history);
     Ok(())
 }
 
-/// Returns an address known to exist in the min-know sample data.
-fn address(index: u32) -> &'static str {
-    let addresses = [
-        "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", // an EF wallet
-        "0x846be97d3bf1e3865f3caf55d749864d39e54cb9",
-        "0xcb776c47291b55bf02b159810712f6897874f1cc", // 7 transactions
-        "0x691e27c4c24cf8a5700563e42dadf66b557f372c", // 44 transactions
-        "0x00d83bf7cec1f97489cf324aa8d159bae6aa4df5", // 1
-        "0xebfd902f83d8ec838ad24259b5bf9617e1b774fc", // 1
-        "0x029f388ac4d5c8bff490550ce0853221030e822b", // 339
-        "0xae32371368e500c01068f4fe444aa3cedb48fab4", // 1
-        "0x00bdb5699745f5b860228c8f939abf1b9ae374ed", // 1504
-        "0xbf705e134a86c67b703a601c8d5a6caab06cbfd0", // 7
-    ];
-    addresses[index as usize]
-}
+
+const SAMPLE_ADDRESS: [&str; 10] = [
+    "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae", // an EF wallet
+    "0x846be97d3bf1e3865f3caf55d749864d39e54cb9",
+    "0xcb776c47291b55bf02b159810712f6897874f1cc", // 7 transactions
+    "0x691e27c4c24cf8a5700563e42dadf66b557f372c", // 44 transactions
+    "0x00d83bf7cec1f97489cf324aa8d159bae6aa4df5", // 1
+    "0xebfd902f83d8ec838ad24259b5bf9617e1b774fc", // 1
+    "0x029f388ac4d5c8bff490550ce0853221030e822b", // 339
+    "0xae32371368e500c01068f4fe444aa3cedb48fab4", // 1
+    "0x00bdb5699745f5b860228c8f939abf1b9ae374ed", // 1504
+    "0xbf705e134a86c67b703a601c8d5a6caab06cbfd0", // 7
+];

@@ -38,7 +38,7 @@ impl Cache {
         config: &Config,
         bytecode: &[u8],
     ) -> Option<String> {
-        let address_string = address.to_string();
+        let address_string = hex::encode(address);
         let address_string = address_string.trim_start_matches("0x");
         match self.abis.get(address_string) {
             Some((VisitNote::PriorSuccess, abi)) => {
@@ -132,8 +132,9 @@ impl Cache {
         }
     }
     /// Attempt to look up nametags if not in cache.
-    pub fn try_nametags(&mut self, address: &str, config: &Config) -> Option<Vec<String>> {
-        match self.nametags.get(address) {
+    pub fn try_nametags(&mut self, address: &H160, config: &Config) -> Option<Vec<String>> {
+        let addr_hex = hex::encode(address);
+        match self.nametags.get(&addr_hex) {
             Some((VisitNote::PriorSuccess, value)) => {
                 debug!("Using cached nametag: {} {:?}", address, value);
                 return Some(value.to_owned());
@@ -148,16 +149,16 @@ impl Cache {
             _ => {}
         }
 
-        match address_nametags(&address, config) {
+        match address_nametags(&addr_hex, config) {
             Ok(n) => {
                 self.nametags
-                    .insert(address.to_owned(), (VisitNote::PriorSuccess, n.to_owned()));
+                    .insert(addr_hex.to_owned(), (VisitNote::PriorSuccess, n.to_owned()));
                 Some(n)
             }
             Err(e) => {
                 error!("Couldn't get nametag for address: {} ({})", &address, e);
                 self.nametags.insert(
-                    address.to_owned(),
+                    addr_hex.to_owned(),
                     (VisitNote::PriorFailure, vec![String::from("")]),
                 );
                 None

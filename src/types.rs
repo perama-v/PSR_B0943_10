@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, fmt::Display};
 
 use anyhow::{anyhow, Result};
 use heimdall::decompile::DecompileBuilder;
@@ -81,7 +81,7 @@ pub struct LoggedEvent {
     /// Unmodified Transaction.log.
     pub raw: Log,
     /// The signature of the first topic (raw event name).
-    pub topic_zero: H256,
+    pub topic_zero: String,
     /// Address of the contract that emitted the event.
     pub contract: Contract,
     /// Decoded 4 byte log signature.
@@ -264,6 +264,40 @@ impl AddressHistory {
     }
 }
 
+impl Display for AddressHistory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let a = self.address;
+        write!(f, "There are {} txs for address: {}", self.transactions.len(), a)?;
+        for (i, tx) in self.transactions.iter().enumerate() {
+            write!(f, "\n\nTransaction {}:", i)?;
+            let Some(desc) = &tx.description else {continue};
+            let Some(receipt) = &tx.receipt else {continue};
+            let Some(events) = &tx.events else {continue};
+            write!(f, "\n\tSender: {}", nice_address(desc.from, a))?;
+            write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
+            write!(f, "\n\tContract: {}", nice_address(receipt.contract_address, a))?;
+            write!(f, "\n\tEvents emitted: {}", events.len())?;
+        }
+        write!(f, "")
+    }
+}
+
+/// Makes an address option nice to read and detects if it is the owner.
+fn nice_address(address: Option<H160>, owner_address: &str) -> String {
+    let owner_address = owner_address.trim_start_matches("0x");
+    match address{
+        Some(a) => {
+            let a = hex::encode(a);
+            if &a == owner_address {
+                return String::from("Self")
+            } else {
+                return format!("0x{}",a)
+            }
+        },
+        None => String::from("None"),
+    }
+}
+
 /// Extracts the information about a given log.
 async fn examine_log(
     log: &Log,
@@ -272,8 +306,13 @@ async fn examine_log(
     config: &Config,
     cache: &mut Cache,
 ) -> Result<Option<LoggedEvent>> {
-    let Some(topic_zero) = log.topics.get(0) else {return Ok(None)};
-    let topic_zero_string = hex::encode(topic_zero);
+    let topic_zero = match log.topics.get(0) {
+        Some(t) => {
+            let s = hex::encode(t);
+            s[..8].to_owned()
+        },
+        None => return Ok(None),
+    };
     let raw = log.clone();
 
     // eth_getCode
@@ -298,8 +337,8 @@ for contract 0x{}. ({})",
     let address = h160_to_string(&log.address);
 
     let abi = cache.try_abi(&log.address, &mode, config, &bytecode).await;
-    let sig_text = cache.try_sig(&topic_zero_string, mode, config).await;
-    let nametags = cache.try_nametags(&address, config);
+    let sig_text = cache.try_sig(&topic_zero, mode, config).await;
+    let nametags = cache.try_nametags(&log.address, config);
 
     let contract = Contract {
         address: address.to_owned(),
