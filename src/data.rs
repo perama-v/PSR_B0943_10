@@ -53,13 +53,50 @@ pub struct Contract {
     pub decompiled: bool,
 }
 
+impl LoggedEvent {
+    fn nametag_string(&self) -> String {
+        let mut nametags = String::new();
+        match &self.nametags {
+            Some(tags) => {
+                if tags.is_empty() { nametags.push_str("|unlabelled")}
+                nametags.push_str("|");
+                for tag in tags {
+                    nametags.push_str(&tag);
+                    nametags.push_str("|");
+                }
+            },
+            None => nametags.push_str("|unlabelled"),
+        }
+        nametags.push(' ');
+        nametags.push_str(&self.contract.address);
+        nametags
+    }
+    fn event_string(&self) -> String {
+        let mut event = String::new();
+        match &self.name {
+            Some(n) => event.push_str(&n),
+            None => event.push_str("Unknown"),
+        }
+        let sig = format!(" event ({})", self.topic_zero);
+        event.push_str(&sig);
+        event.to_owned()
+    }
+    fn topics_string(&self) -> String {
+        let mut t = format!("{}", self.raw.topics.len());
+        for (i, topic) in self.raw.topics.iter().enumerate() {
+            t.push_str(&format!(", topic {} {}", i + 1, topic.to_string()));
+        }
+        t
+    }
+}
+
 
 impl Display for LoggedEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\n\t\tEmitted from: {} (nametags: {:?})", self.contract, self.nametags)?;
-        write!(f, "\n\t\tEvent name: {:?} (signature: {})", self.name, self.topic_zero)?;
-        write!(f, "\n\t\tLog type: {:?}", self.raw.log_type)?;
-        write!(f, "\n\t\tTopic count: {}. Data: {} bytes.", self.raw.topics.len(), self.raw.data.0.len())?;
+        write!(f, "{}", self.event_string())?;
+        write!(f, "\n\t\t{} contract", self.nametag_string())?;
+        write!(f, "\n\t\t\tTopic values: {}", self.topics_string())?;
+        write!(f, "\n\t\t\tData: {} bytes.", self.raw.data.0.len())?;
         write!(f, "")
     }
 }

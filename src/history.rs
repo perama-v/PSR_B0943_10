@@ -230,6 +230,7 @@ impl Display for AddressHistory {
             write!(f, "\n\tSender: {}", nice_address(desc.from, a))?;
             write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
             write!(f, "\n\tContract: {}", nice_address(receipt.contract_address, a))?;
+            write!(f, "\n\tTx Hash: {}", hex::encode(desc.hash))?;
             let event_count = events.len();
             write!(f, "\n\tEvents emitted: {}", event_count)?;
             for (i, e) in events.iter().enumerate() {
@@ -237,7 +238,7 @@ impl Display for AddressHistory {
                     write!(f, "\n\t\tSkipping remaining {} events...", event_count - i - 1)?;
                     break
                 }
-                write!(f, "\n\n\t\t{}/{}: {}", i, event_count, e)?;
+                write!(f, "\n\n\t\t{}. Event {}/{}", e, i, event_count)?;
             }
         }
         write!(f, "")
