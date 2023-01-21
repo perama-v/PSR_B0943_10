@@ -239,7 +239,7 @@ impl Display for AddressHistory {
             write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
             let calldata = hex::encode(&desc.input.0);
             if !calldata.is_empty() {
-                write!(f, "\n\tCalldata: {}", calldata)?;
+                write!(f, "\n\tCalldata: {} bytes", desc.input.0.len())?;
             }
             if let Some(c) = receipt.contract_address {
                 write!(f, "\n\tContract deployed: {}", nice_address(Some(c), a))?;

@@ -54,8 +54,9 @@ There are 2 txs for address: 0x846be97d3bf1e3865f3caf55d749864d39e54cb9
 Transaction 0:
         Sender: Self
         Recipient: 0x7a250d5630b4cf539739df2c5dacb4c659f2488d
-        Contract: None
+        Calldata: 228 bytes
         Tx Hash: 1a8d94dda1694bad33384215bb3dc0a56652b7069c71d2b1afed35b24c9b54df
+        Ether sent: 140 mETH
         Events emitted: 5
 
                 Deposit(address,uint256) event (e1fffcc4)
@@ -86,8 +87,8 @@ Transaction 0:
 Transaction 1:
         Sender: Self
         Recipient: 0x8028cfc2e08a6b569530d4809cfa75b1f3ffd6ad
-        Contract: None
         Tx Hash: 48bef06ec38f53a9f9f193717dad9b301842077d47d55e0e94fa27a05ec7193c
+        Ether sent: 2 mETH
         Events emitted: 0
 ```
 Next
