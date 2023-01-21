@@ -15,6 +15,7 @@ use min_know::{
     },
 };
 
+use serde::{Deserialize, Serialize};
 use web3::{
     transports::Http,
     types::{BlockNumber, Log, H160},
@@ -37,7 +38,7 @@ pub enum Mode {
     UseApis,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// Database that contains the indexed transaction appearances.
     pub appearances_db: Todd<AAISpec>,
@@ -236,12 +237,18 @@ impl Display for AddressHistory {
             let Some(events) = &tx.events else {continue};
             write!(f, "\n\tSender: {}", nice_address(desc.from, a))?;
             write!(f, "\n\tRecipient: {}", nice_address(receipt.to, a))?;
-            write!(
-                f,
-                "\n\tContract: {}",
-                nice_address(receipt.contract_address, a)
-            )?;
+            let calldata = hex::encode(&desc.input.0);
+            if !calldata.is_empty() {
+                write!(f, "\n\tCalldata: {}", calldata)?;
+            }
+            if let Some(c) = receipt.contract_address {
+                write!(f, "\n\tContract deployed: {}", nice_address(Some(c), a))?;
+            }
             write!(f, "\n\tTx Hash: {}", hex::encode(desc.hash))?;
+            let milli_ether = desc.value / 1_000_000_000 / 1_000_000;
+            if !milli_ether.is_zero() {
+                write!(f, "\n\tEther sent: {} mETH", milli_ether)?;
+            }
             let event_count = events.len();
             write!(f, "\n\tEvents emitted: {}", event_count)?;
             for (i, e) in events.iter().enumerate() {

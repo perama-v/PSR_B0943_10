@@ -91,7 +91,13 @@ Transaction 1:
         Events emitted: 0
 ```
 Next
-- Use ABIs to get paramters.
+- ?Match calldata components to emitted events
+    - Note that one can reasonably guess the types from abi.encode()-ed data
+    - Thus armed, address and values can be kept. (input address 1, input address 2, input value 1, etc.)
+    - When looking at emitted topics and data, these can be matched to inputs. (event topic 1 is equal to input address 2).
+    - Hence "user derived" values can be communicated. That's useful information in say a
+    dex trade (user sends x and receives y) because x will appear in calldata!
+- ?Use ABIs to get parameters.
     - Either using metadata IPFS/Swarm hash for ABI or a new TODD-compliant ABI database.
 - Use data beyond TODD sample data (appearances, nametags and signatures databases)
     1. Use Min-know to call broadcast contract
